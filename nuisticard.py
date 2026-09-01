@@ -11,18 +11,27 @@ from datetime import datetime
 from urllib.parse import urlparse, parse_qs
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
-
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==========================================
 # 模块一：全局认证中心与门户信息获取
 # ==========================================
 class NuistCAS:
-    def __init__(self, username, password):
+    def __init__(self, username, password,multifactor_browser_fingerprint, multifactor_users):
         self.username = username
         self.password = password
         self.session = requests.Session()
+        self.session.verify = False
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })
+
+        # # =================【核心修复】=================
+        # 注入浏览器中已受信任的多因素认证 (MFA) Cookie，伪装成受信任设备绕过 isMultifactor 二次验证
+        # Cookie值提取自你提供的浏览器抓包数据 MULTIFACTOR_BROWSER_FINGERPRINT MULTIFACTOR_USERS
+        self.session.cookies.set("MULTIFACTOR_BROWSER_FINGERPRINT", multifactor_browser_fingerprint, domain="authserver.nuist.edu.cn")
+        self.session.cookies.set("MULTIFACTOR_USERS", multifactor_users, domain="authserver.nuist.edu.cn")
+
         self.cas_login_url = "https://authserver.nuist.edu.cn/authserver/login"
         self.ocr = ddddocr.DdddOcr(show_ad=False)
 
@@ -288,8 +297,18 @@ class NotificationCenter:
 # ==========================
 if __name__ == '__main__':
     # 1. 账号基础配置
-    USERNAME = os.getenv("NUIST_USER", "202412xxxxxx") 
-    PASSWORD = os.getenv("NUIST_PWD", "xxxxxx")
+    USERNAME = os.getenv("NUIST_USER", "20241xxxxx") 
+    PASSWORD = os.getenv("NUIST_PWD", "xxxxx")
+
+    # 多因素认证 Cookie（同样支持环境变量 + 默认值）
+    MULTIFACTOR_BROWSER_FINGERPRINT = os.getenv(
+        "NUIST_MULTIFACTOR_FINGERPRINT", 
+        ""
+    )
+    MULTIFACTOR_USERS = os.getenv(
+        "NUIST_MULTIFACTOR_USERS",
+        ""
+    )
 
     # 2. 集中管理你的所有通知 Token，填入后自动激活对应渠道
     notifier_keys = {
@@ -298,7 +317,7 @@ if __name__ == '__main__':
         "PUSHPLUS_TOKEN": os.getenv("PUSHPLUS_TOKEN", "c5c07b214d6c41d59aa832c40c212333")  # 在这里填入 PushPlus 的 token
     }
     # 初始化认证大厅
-    cas = NuistCAS(USERNAME, PASSWORD)
+    cas = NuistCAS(USERNAME, PASSWORD,MULTIFACTOR_BROWSER_FINGERPRINT,MULTIFACTOR_USERS)
     
     if cas.login(): 
         # 宿舍请求体参数
