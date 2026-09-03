@@ -4,6 +4,8 @@ import time
 import json
 import base64
 import random
+import re
+import codecs
 import requests
 import ddddocr
 from bs4 import BeautifulSoup
@@ -12,12 +14,14 @@ from urllib.parse import urlparse, parse_qs
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import unpad
 import urllib3
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 # ==========================================
-# 模块一：全局认证中心与门户信息获取
+# 核心模块：全局认证中心 (统一获取 TGC)
 # ==========================================
 class NuistCAS:
-    def __init__(self, username, password,multifactor_browser_fingerprint, multifactor_users):
+    def __init__(self, username, password, multifactor_browser_fingerprint, multifactor_users):
         self.username = username
         self.password = password
         self.session = requests.Session()
@@ -26,9 +30,7 @@ class NuistCAS:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })
 
-        # # =================【核心修复】=================
-        # 注入浏览器中已受信任的多因素认证 (MFA) Cookie，伪装成受信任设备绕过 isMultifactor 二次验证
-        # Cookie值提取自你提供的浏览器抓包数据 MULTIFACTOR_BROWSER_FINGERPRINT MULTIFACTOR_USERS
+        # 注入多因素认证 Cookie，绕过二次验证
         self.session.cookies.set("MULTIFACTOR_BROWSER_FINGERPRINT", multifactor_browser_fingerprint, domain="authserver.nuist.edu.cn")
         self.session.cookies.set("MULTIFACTOR_USERS", multifactor_users, domain="authserver.nuist.edu.cn")
 
@@ -47,7 +49,6 @@ class NuistCAS:
         key = key.strip().encode('utf-8')
         iv = iv.encode('utf-8')
         
-        # PKCS7 填充
         pad = AES.block_size - len(text) % AES.block_size
         text += bytes([pad] * pad)
         
@@ -55,22 +56,22 @@ class NuistCAS:
         return base64.b64encode(cipher.encrypt(text)).decode('utf-8')
 
     def _get_and_recognize_captcha(self):
-        """独立的验证码获取与识别函数"""
-        print("🧩 [验证码] 正在获取并识别验证码...")
+        """获取并识别验证码"""
+        print("🧩 [系统] 正在获取并识别验证码...")
         timestamp = int(datetime.now().timestamp() * 1000)
         captcha_url = f'https://authserver.nuist.edu.cn/authserver/getCaptcha.htl?{timestamp}'
         
         try:
             captcha_img_resp = self.session.get(captcha_url, timeout=5)
             captcha_text = self.ocr.classification(captcha_img_resp.content)
-            print(f"📝 [验证码] 识别结果: {captcha_text}")
+            print(f"📝 [系统] 验证码识别结果: {captcha_text}")
             return captcha_text
         except Exception as e:
-            print(f"❌ [验证码] 获取或识别失败: {e}")
+            print(f"❌ [系统] 验证码获取或识别失败: {e}")
             return None
 
     def login(self):
-        """核心登录逻辑：获取全局 Cookie (TGC)"""
+        """核心登录逻辑，获取全局 Cookie (TGC)"""
         print("🚪 [系统] 正在访问信息门户大门...")
         try:
             resp = self.session.get(self.cas_login_url, timeout=10)
@@ -90,9 +91,7 @@ class NuistCAS:
             return False
 
         captcha = self._get_and_recognize_captcha()
-        if not captcha:
-            print("❌ [错误] 验证码环节中断，停止登录。")
-            return False
+        if not captcha: return False
 
         print("🔑 [系统] 正在加密并提交登录表单...")
         enc_password = self._encrypt_password(self.password, pwdEncryptSalt)
@@ -115,11 +114,12 @@ class NuistCAS:
         )
 
         if 'CASTGC' in self.session.cookies.get_dict():
-            print("✅ [系统] 登录成功！已获取全局通行证(TGC)。\n" + "-"*40)
+            print("✅ [系统] 登录成功！已获取全局通行证(TGC)。\n" + "="*50)
             return True
         else:
-            print("❌ [系统] 登录失败！请检查账号密码或验证码是否识别错误。")
+            print("❌ [系统] 登录失败！请检查账号密码或验证码。")
             return False
+
             
 # ==========================================
 # 模块二：一卡通业务 (依赖全局 Session 换 Token)
@@ -317,7 +317,7 @@ if __name__ == '__main__':
         "PUSHPLUS_TOKEN": os.getenv("PUSHPLUS_TOKEN", "c5c07b214d6c41d59aa832c40c212333")  # 在这里填入 PushPlus 的 token
     }
     # 初始化认证大厅
-    cas = NuistCAS(USERNAME, PASSWORD,MULTIFACTOR_BROWSER_FINGERPRINT,MULTIFACTOR_USERS)
+    0cas = NuistCAS(USERNAME, PASSWORD, MFA_FINGERPRINT, MFA_USERS)
     
     if cas.login(): 
         # 宿舍请求体参数
