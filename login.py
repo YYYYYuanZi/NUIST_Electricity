@@ -11,7 +11,7 @@ import token_store
 
 
 class _StubSession:
-    """缓存命中时不需要真 session，造个占位对象给 NUIST_Electric 用。"""
+    """缓存命中时不需要真 session，造个占位对象给 ElectricAPI 用。"""
     def __init__(self):
         self.session = requests.Session()
         self.session.verify = False
@@ -41,7 +41,6 @@ def _login_oauth():
 
 def get_token(force_login=False):
     """返回 (session_obj, access_token)；失败 (None, None)。"""
-    # 1. 缓存
     if not force_login:
         cached = token_store.load()
         if cached:
@@ -49,7 +48,6 @@ def get_token(force_login=False):
             print(f"♻️ [Token] 命中本地缓存，剩余 {remain:.2f} 小时，跳过登录。")
             return _StubSession(), cached
 
-    # 2. 登录
     print("🔐 [Token] 无可用缓存，开始登录...")
     if config.LOGIN_MODE == "cas":
         session_obj, token = _login_cas()
@@ -62,11 +60,9 @@ def get_token(force_login=False):
     if not token:
         return None, None
 
-    # 3. 写回缓存
     token_store.save(token, token_store.expire_at_ts(token), config.LOGIN_MODE)
     return session_obj, token
 
 
 def print_token_info(access_token):
-    """统一打印有效期"""
     print(f"⏳ [Token] {token_store.format_info(access_token)}")

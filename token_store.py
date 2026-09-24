@@ -3,6 +3,10 @@
 Token 一站式模块：
     - 解析：decode_jwt / remaining_hours / expire_time / expire_at_ts / format_info
     - 缓存：load / save / clear
+
+注意：
+    load() 只做“时间层面”的预判，用于快速跳过登录。
+    真正的有效性以服务端返回为准（401/403 由 ElectricAPI 抛 TokenInvalidError）。
 """
 import base64
 import json
@@ -15,10 +19,9 @@ import config
 
 
 # ==========================================
-# 一、Token 解析（与登录方式无关）
+# 一、Token 解析
 # ==========================================
 def decode_jwt(token: str) -> Optional[dict]:
-    """解析 JWT 的 payload 部分，失败返回 None"""
     try:
         payload = token.split(".")[1]
         payload += "=" * (-len(payload) % 4)
@@ -28,7 +31,6 @@ def decode_jwt(token: str) -> Optional[dict]:
 
 
 def remaining_hours(token: str) -> float:
-    """返回剩余有效小时数；无法解析返回 0"""
     data = decode_jwt(token)
     if not data or "exp" not in data:
         return 0.0
@@ -37,7 +39,6 @@ def remaining_hours(token: str) -> float:
 
 
 def expire_time(token: str) -> Optional[datetime]:
-    """返回过期时间（UTC），无法解析返回 None"""
     data = decode_jwt(token)
     if not data or "exp" not in data:
         return None
@@ -45,7 +46,6 @@ def expire_time(token: str) -> Optional[datetime]:
 
 
 def expire_at_ts(token: str) -> float:
-    """返回 exp 的 unix 时间戳；失败返回 0"""
     data = decode_jwt(token)
     if not data:
         return 0.0
@@ -53,7 +53,6 @@ def expire_at_ts(token: str) -> float:
 
 
 def format_info(token: str) -> str:
-    """一行格式化：剩余 X 小时（过期 UTC：...）"""
     remain = remaining_hours(token)
     exp = expire_time(token)
     if exp:
@@ -71,7 +70,10 @@ def _path():
 
 
 def load():
-    """有效则返回 token，否则 None"""
+    """
+    仅按“本地记录的时间”判断是否可用，用于快速跳过登录。
+    时间没过 ≠ 服务端一定认；调用方必须对 401/403 做兜底重登。
+    """
     p = _path()
     if not os.path.exists(p):
         return None
