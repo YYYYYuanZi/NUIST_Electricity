@@ -186,13 +186,13 @@ room_id    = "14030&101"
 | --- | --- | --- |
 | `NUIST_USER` | 南信大统一身份认证账号 (学号) | ✅ 必填 |
 | `NUIST_PWD` | 统一身份认证密码 | ✅ 必填 |
-| `MULTIFACTOR_BROWSER_FINGERPRINT` | 受信任设备的浏览器指纹 (抓取自 Cookie) | ✅ 必填 (2026.9.1+) |
-| `MULTIFACTOR_USERS` | 多因素用户凭证 (抓取自 Cookie) | ✅ 必填 (2026.9.1+) |
-| `ICARD_LEVEL` | 宿舍层级参数 (对应抓包的 `level`) | ✅ 必填 |
-| `ICARD_FEEITEMID` | 缴费项目号 (对应抓包的 `feeitemid`) | ✅ 必填 |
-| `ICARD_XIAOYU` | 校区/园区 ID (对应抓包的 `xiaoyu_id`) | ✅ 必填 |
-| `ICARD_LOUDONG` | 楼栋 ID (对应抓包的 `loudong_id`) | ✅ 必填 |
-| `ICARD_ROOM` | 房间号 ID (对应抓包的 `room_id`) | ✅ 必填 |
+| `MULTIFACTOR_BROWSER_FINGERPRINT` | 受信任设备的浏览器指纹 (抓取自 Cookie) | ✅ 选填 |
+| `MULTIFACTOR_USERS` | 多因素用户凭证 (抓取自 Cookie) | 选填 |
+| `ICARD_LEVEL` | 宿舍层级参数 (对应抓包的 `level`) | 选填 |
+| `ICARD_FEEITEMID` | 缴费项目号 (对应抓包的 `feeitemid`) | 选填 |
+| `ICARD_XIAOYU` | 校区/园区 ID (对应抓包的 `xiaoyu_id`) | 选填 |
+| `ICARD_LOUDONG` | 楼栋 ID (对应抓包的 `loudong_id`) | 选填 |
+| `ICARD_ROOM` | 房间号 ID (对应抓包的 `room_id`) | 选填 |
 | `PUSHPLUS_TOKEN` | PushPlus 的 Token (微信接收) | 选填 |
 | `BARK_KEY` | Bark 的专属 URL Key (iOS 接收) | 选填 |
 | `SERVERCHAN_KEY` | Server酱 SendKey | 选填 |
