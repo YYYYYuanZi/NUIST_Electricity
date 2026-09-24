@@ -178,43 +178,26 @@ room_id    = "14030&101"
 
 5. 填进 `config.py` 的对应常量。
 
-### 4. 配置 config.py
+### 4. 配置环境变量与运行
 
-打开 `config.py`，按需填写：
+为了保护账号隐私与方便云端部署，本脚本采用环境变量读取配置。你无需修改代码，只需在运行前配置以下环境变量：
 
-```python
-# ---- 账号 ----
-USERNAME = "2024xxxxx"
-PASSWORD = "your_password"
+| 变量名 | 说明 | 必填状态 |
+| --- | --- | --- |
+| `NUIST_USER` | 南信大统一身份认证账号 (学号) | ✅ 必填 |
+| `NUIST_PWD` | 统一身份认证密码 | ✅ 必填 |
+| `MULTIFACTOR_BROWSER_FINGERPRINT` | 受信任设备的浏览器指纹 (抓取自 Cookie) | ✅ 必填 (2026.9.1+) |
+| `MULTIFACTOR_USERS` | 多因素用户凭证 (抓取自 Cookie) | ✅ 必填 (2026.9.1+) |
+| `ICARD_LEVEL` | 宿舍层级参数 (对应抓包的 `level`) | ✅ 必填 |
+| `ICARD_FEEITEMID` | 缴费项目号 (对应抓包的 `feeitemid`) | ✅ 必填 |
+| `ICARD_XIAOYU` | 校区/园区 ID (对应抓包的 `xiaoyu_id`) | ✅ 必填 |
+| `ICARD_LOUDONG` | 楼栋 ID (对应抓包的 `loudong_id`) | ✅ 必填 |
+| `ICARD_ROOM` | 房间号 ID (对应抓包的 `room_id`) | ✅ 必填 |
+| `PUSHPLUS_TOKEN` | PushPlus 的 Token (微信接收) | 选填 |
+| `BARK_KEY` | Bark 的专属 URL Key (iOS 接收) | 选填 |
+| `SERVERCHAN_KEY` | Server酱 SendKey | 选填 |
 
-# 🔑 登录模式：
-#   "cas"   —— CAS 统一身份认证跳转登录（需手动抓 MFA 指纹）
-#   "oauth" —— 一卡通账号密码直登（无需 MFA）
-LOGIN_MODE = "oauth"
-
-# ---- 宿舍参数（留空则自动引导选择）----
-feeitemid  = ""
-xiaoyu_id  = ""
-loudong_id = ""
-room_id    = ""
-
-# ---- CAS 专用（走统一身份认证时必须填，oauth 模式无需填写）----
-MULTIFACTOR_BROWSER_FINGERPRINT = "..."
-MULTIFACTOR_USERS = "..."
-
-# ---- 通知渠道（选填，不填则跳过）----
-NOTIFIER_KEYS = {
-    "BARK_KEY": "",
-    "SERVERCHAN_KEY": "",
-    "PUSHPLUS_TOKEN": "",
-}
-
-# ---- Token 缓存 ----
-TOKEN_FILE = "token_cache.json"
-MIN_REMAINING_SECONDS = 300
-```
-
-### 5. 运行
+*本地运行测试示例 (Linux/macOS):*
 
 ```bash
 python main.py
