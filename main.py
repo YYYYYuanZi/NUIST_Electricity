@@ -1,140 +1,116 @@
 # -*- coding: utf-8 -*-
+"""NUIST 电费查询主入口：引导 + 查询 + 推送。"""
 
-from nuist_cas import NUIST_CAS
-from nuist_card import NUIST_Card
-from nuist_electric import NUIST_Electric
+import config
+import token_store
+from login import get_token, print_token_info
+from electric_api import ElectricAPI
 from notifier import NotificationCenter
 
-# ==========================
-# ⚙️ 配置区
-# ==========================
-USERNAME = "xxxxx"
-PASSWORD = "xxxxx"
 
-MULTIFACTOR_BROWSER_FINGERPRINT = ""
-MULTIFACTOR_USERS = (
-    ""
-)
+def resolve_room(electric, access_token):
+    feeitemid = config.feeitemid
+    xiaoyu_id = config.xiaoyu_id
+    loudong_id = config.loudong_id
+    room_id = config.room_id
 
-# ---- 宿舍参数（留空则自动引导选择）----
-feeitemid  = ""
-xiaoyu_id  = ""
-loudong_id = ""
-room_id    = ""
+    print("\n" + "=" * 50)
+    print("🔍 宿舍参数不完整，进入自动引导模式")
+    print("=" * 50)
+
+    if not feeitemid:
+        print("🏫 请选择你所在的区域：")
+        fee_list = list(config.FEEITEM_MAP.keys())
+        for i, fid in enumerate(fee_list):
+            print(f"  [{i}] {config.FEEITEM_MAP[fid]}  (feeitemid={fid})")
+        feeitemid = fee_list[int(input("👉 请选择区域编号: "))]
+
+    print(f"\n💡 已选区域：{config.FEEITEM_MAP.get(feeitemid, '未知')}，feeitemid={feeitemid}\n")
+
+    campuses = electric.get_campuses(access_token, feeitemid)
+    if not campuses:
+        print("❌ 拉取校区列表失败")
+        exit(1)
+    for i, c in enumerate(campuses):
+        print(f"  [{i}] {c.get('name')}  ->  xiaoyu_id={c.get('value')}")
+    xiaoyu_id = campuses[int(input("👉 请选择校区编号: "))]["value"]
+
+    buildings = electric.get_buildings(access_token, feeitemid, xiaoyu_id)
+    if not buildings:
+        print("❌ 拉取楼栋列表失败")
+        exit(1)
+    for i, b in enumerate(buildings):
+        print(f"  [{i}] {b.get('name')}  ->  loudong_id={b.get('value')}")
+    loudong_id = buildings[int(input("👉 请选择楼栋编号: "))]["value"]
+
+    rooms = electric.get_rooms(access_token, feeitemid, xiaoyu_id, loudong_id)
+    if not rooms:
+        print("❌ 拉取房间列表失败")
+        exit(1)
+    for i, r in enumerate(rooms):
+        print(f"  [{i}] {r.get('name')}  ->  room_id={r.get('value')}")
+    room_id = rooms[int(input("👉 请选择房间编号: "))]["value"]
+
+    print("\n✅ 已选定：")
+    print(f'feeitemid  = "{feeitemid}"')
+    print(f'xiaoyu_id  = "{xiaoyu_id}"')
+    print(f'loudong_id = "{loudong_id}"')
+    print(f'room_id    = "{room_id}"')
+    print("（把这 4 个值填回 config.py 顶部，下次就不用再选）\n")
+    return feeitemid, xiaoyu_id, loudong_id, room_id
 
 
-NOTIFIER_KEYS = {
-    "BARK_KEY": "",
-    "SERVERCHAN_KEY": "",
-    "PUSHPLUS_TOKEN": "",
-}
-
-# ==========================
+def query_balance(electric, access_token, params):
+    electric.post_data = params
+    return electric.get_electricity_balance(access_token)
 
 
+def push(balance):
+    enabled = {k: v for k, v in config.NOTIFIER_KEYS.items() if v}
+    if not enabled:
+        print("ℹ️ [通知] 未配置任何通知渠道，跳过推送。")
+        return
+    notifier = NotificationCenter(config.NOTIFIER_KEYS)
+    notifier.dispatch_all(f"{float(balance):.2f}")
 
-# ==========================
-# 🚀 主程序运行入口
-# ==========================
+
 if __name__ == '__main__':
-    # 1. 登录
-    nuistcas = NUIST_CAS(USERNAME, PASSWORD,
-                         MULTIFACTOR_BROWSER_FINGERPRINT,
-                         MULTIFACTOR_USERS)
-    if not nuistcas.login():
+    session, access_token = get_token()
+    if not access_token:
         exit(1)
+    print_token_info(access_token)
 
-    # 2. 换一卡通 token
-    card = NUIST_Card(cas_session=nuistcas)
-    if not card.authorize():
-        exit(1)
+    electric = ElectricAPI(cas_session=session)
 
-    electric = NUIST_Electric(cas_session=nuistcas)
-
-    # 3. 引导模式
-    need_resolve = not (feeitemid and xiaoyu_id and loudong_id and room_id)
-
-    if need_resolve:
-        # feeitemid 映射表（仅引导模式用来显示区域名）
-        FEEITEM_MAP = {
-            "448": "本部",
-            "429": "天长",
-            "568": "沁园42、43栋",
-        }
-
-        print("\n" + "=" * 50)
-        print("🔍 宿舍参数不完整，进入自动引导模式")
-        print("=" * 50)
-
-        # 3.1 选区域（决定 feeitemid）
-        if not feeitemid:
-            print("🏫 请选择你所在的区域：")
-            feeitem_list = list(FEEITEM_MAP.keys())
-            for i, fid in enumerate(feeitem_list):
-                print(f"  [{i}] {FEEITEM_MAP[fid]}  (feeitemid={fid})")
-            fee_idx = int(input("👉 请选择区域编号: "))
-            feeitemid = feeitem_list[fee_idx]
-
-        print(f"\n💡 已选区域：{FEEITEM_MAP.get(feeitemid, '未知')}，feeitemid={feeitemid}\n")
-
-        # 3.2 拉校区
-        campuses = electric.get_campuses(card.access_token, feeitemid)
-        if not campuses:
-            print("❌ 拉取校区列表失败")
-            exit(1)
-        for i, c in enumerate(campuses):
-            print(f"  [{i}] {c.get('name')}  ->  xiaoyu_id={c.get('value')}")
-        campus_idx = int(input("👉 请选择校区编号: "))
-        xiaoyu_id = campuses[campus_idx]["value"]
-
-        # 3.3 拉楼栋
-        buildings = electric.get_buildings(card.access_token, feeitemid, xiaoyu_id)
-        if not buildings:
-            print("❌ 拉取楼栋列表失败")
-            exit(1)
-        for i, b in enumerate(buildings):
-            print(f"  [{i}] {b.get('name')}  ->  loudong_id={b.get('value')}")
-        b_idx = int(input("👉 请选择楼栋编号: "))
-        loudong_id = buildings[b_idx]["value"]
-
-        # 3.4 拉房间
-        rooms = electric.get_rooms(card.access_token, feeitemid, xiaoyu_id, loudong_id)
-        if not rooms:
-            print("❌ 拉取房间列表失败")
-            exit(1)
-        for i, r in enumerate(rooms):
-            print(f"  [{i}] {r.get('name')}  ->  room_id={r.get('value')}")
-        r_idx = int(input("👉 请选择房间编号: "))
-        room_id = rooms[r_idx]["value"]
-
-        print("\n✅ 已选定：")
-        print(f'   feeitemid  = "{feeitemid}"')
-        print(f'   xiaoyu_id  = "{xiaoyu_id}"')
-        print(f'   loudong_id = "{loudong_id}"')
-        print(f'   room_id    = "{room_id}"')
-        print("   （把这 4 个值填回 main.py 顶部，下次就不用再选）\n")
-
+    if not (config.feeitemid and config.xiaoyu_id
+            and config.loudong_id and config.room_id):
+        feeitemid, xiaoyu_id, loudong_id, room_id = resolve_room(electric, access_token)
     else:
+        feeitemid = config.feeitemid
+        xiaoyu_id = config.xiaoyu_id
+        loudong_id = config.loudong_id
+        room_id = config.room_id
         print(f"💡 [配置] feeitemid={feeitemid}，区域已配置")
 
-    # 4. 组装请求参数并查询
-    ICARD_DATA = {
-        "type": "IEC",
-        "level": "3",
+    params = {
+        "type": "IEC", "level": "3",
         "feeitemid": feeitemid,
         "xiaoyu_id": xiaoyu_id,
         "loudong_id": loudong_id,
         "room_id": room_id,
     }
-    electric.post_data = ICARD_DATA
-    balance, token_invalid = electric.get_electricity_balance(card.access_token)
 
-    # 5. 推送
+    balance, token_invalid = query_balance(electric, access_token, params)
+
+    if token_invalid:
+        print("🔄 [Token] 查询时发现 token 失效，清缓存并重新登录...")
+        token_store.clear()
+        session, access_token = get_token(force_login=True)
+        if not access_token:
+            exit(1)
+        print_token_info(access_token)
+        electric = NUIST_Electric(cas_session=session)
+        balance, token_invalid = query_balance(electric, access_token, params)
+
     if balance is not None:
-        enabled = {k: v for k, v in NOTIFIER_KEYS.items() if v}
-        if enabled:
-            balance = f"{float(balance):.2f}"
-            notifier = NotificationCenter(NOTIFIER_KEYS)
-            notifier.dispatch_all(balance)
-        else:
-            print("ℹ️ [通知] 未配置任何通知渠道，跳过推送。")
+        push(balance)

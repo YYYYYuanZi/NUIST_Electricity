@@ -5,7 +5,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-class NUIST_Electric:
+class ElectricAPI:
     BASE_URL = "https://icard.nuist.edu.cn"
     QUERY_URL = f"{BASE_URL}/charge/feeitem/getThirdData"
 
