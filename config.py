@@ -9,7 +9,7 @@ LOGIN_MODE = "oauth"          # "cas" 或 "oauth"
 
 # ---- 宿舍参数（留空则自动引导选择）----
 feeitemid  = ""
-xiaoyu_id  = ""
+xiaoqu_id  = ""
 loudong_id = ""
 room_id    = ""
 
